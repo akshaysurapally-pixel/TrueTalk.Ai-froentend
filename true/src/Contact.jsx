@@ -1,172 +1,337 @@
-import { useEffect, useState } from "react";
+import React, { useState } from "react";
 
-const Contact = () => {
-    const [messages, setMessages] = useState([]);
-    const [ws, setWs] = useState(null);
-    const [text, setText] = useState("");
-    const [contact, setContact] = useState({ name: "", phone: "" });
+const ContactSharingApp = () => {
+  // Dummy data (you can replace with API data later)
+  const [contacts, setContacts] = useState([
+    { id: 1, name: "Akshay", phone_number: "9999999999", email: "akshay@mail.com" },
+    { id: 2, name: "Ravi", phone_number: "8888888888", email: "ravi@mail.com" },
+  ]);
 
-    useEffect(() => {
-        // Load saved contact from localStorage
-        const savedContact = localStorage.getItem("contact");
-        if (savedContact) {
-            setContact(JSON.parse(savedContact));
-        }
+  const [sharedContacts, setSharedContacts] = useState([
+    {
+      id: 1,
+      contact_name: "John",
+      contact_phone: "7777777777",
+      contact_email: "john@mail.com",
+      sender: { username: "admin" },
+      is_accepted: false,
+    },
+  ]);
 
-        // WebSocket Connection
-        const socket = new WebSocket("ws://localhost:8000/ws/contact/");
-        setWs(socket);
+  const [users] = useState([
+    { id: 10, username: "mahesh" },
+    { id: 12, username: "priya" },
+  ]);
 
-        socket.onopen = () => {
-            console.log("WebSocket Connected");
+  const [activeTab, setActiveTab] = useState("myContacts");
+  const [searchTerm, setSearchTerm] = useState("");
 
-            // Auto-send saved contact when websocket connects
-            const saved = localStorage.getItem("contact");
-            if (saved) {
-                const c = JSON.parse(saved);
-                socket.send(
-                    JSON.stringify({
-                        type: "contact",
-                        sender: "akshay",
-                        contact_name: c.name,
-                        contact_phone: c.phone,
-                    })
-                );
-            }
-        };
+  // Modal controls
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+  const [isAddContactModalOpen, setIsAddContactModalOpen] = useState(false);
 
-        socket.onmessage = (event) => {
-            const msg = JSON.parse(event.data);
-            setMessages((prev) => [...prev, msg]);
-        };
+  // New contact form
+  const [newContact, setNewContact] = useState({
+    name: "",
+    phone_number: "",
+    email: "",
+  });
 
-        socket.onclose = () => console.log("WebSocket Closed");
+  // Share form
+  const [selectedContact, setSelectedContact] = useState("");
+  const [selectedUser, setSelectedUser] = useState("");
 
-        return () => socket.close();
-    }, []);
+  // Filter logic
+  const filteredContacts = contacts.filter((c) =>
+    c.name.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
-    // Send Text Message
-    const sendTextMessage = () => {
-        if (!text.trim() || !ws || ws.readyState !== 1) return;
+  const filteredSharedContacts = sharedContacts.filter((c) =>
+    c.contact_name.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
-        ws.send(
-            JSON.stringify({
-                type: "text",
-                sender: "akshay",
-                text,
-            })
-        );
+  // Handlers
+  const addContact = (e) => {
+    e.preventDefault();
+    const newId = Date.now();
+    setContacts([...contacts, { id: newId, ...newContact }]);
+    setNewContact({ name: "", phone_number: "", email: "" });
+    setIsAddContactModalOpen(false);
+  };
 
-        setText("");
-    };
+  const deleteContact = (id) => {
+    setContacts(contacts.filter((c) => c.id !== id));
+  };
 
-    // Send Contact + Save to localStorage + Save to Backend
-    const sendContact = async () => {
-        if (!contact.name.trim() || !contact.phone.trim() || !ws) return;
+  const acceptShared = (id) => {
+    const item = sharedContacts.find((c) => c.id === id);
+    setContacts([
+      ...contacts,
+      {
+        id: Date.now(),
+        name: item.contact_name,
+        phone_number: item.contact_phone,
+        email: item.contact_email,
+      },
+    ]);
 
-        // 1. Save in localStorage
-        localStorage.setItem("contact", JSON.stringify(contact));
+    setSharedContacts(sharedContacts.filter((c) => c.id !== id));
+  };
 
-        // 2. Send through websocket
-        ws.send(
-            JSON.stringify({
-                type: "contact",
-                sender: "akshay",
-                contact_name: contact.name,
-                contact_phone: contact.phone,
-            })
-        );
+  const rejectShared = (id) => {
+    setSharedContacts(sharedContacts.filter((c) => c.id !== id));
+  };
 
-        // 3. Save to backend (Django API)
-        await fetch("http://localhost:8000/api/contact/save/", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-                sender: "akshay",
-                name: contact.name,
-                phone: contact.phone,
-            }),
-        });
+  const shareContact = () => {
+    alert("This is frontend only. Backend coming later!");
+    setIsShareModalOpen(false);
+  };
 
-        setContact({ name: "", phone: "" });
-    };
+  // UI Rendering
+  return (
+    <div className="min-h-screen bg-gray-100">
+      {/* Header */}
+      <header className="bg-green-600 text-white p-4 shadow">
+        <div className="max-w-4xl mx-auto flex justify-between items-center">
+          <h1 className="text-xl font-bold">Contact Sharing App</h1>
 
-    return (
-        <div className="w-full h-screen flex flex-col bg-gray-50">
+          <div className="space-x-3">
+            <button
+              onClick={() => setIsAddContactModalOpen(true)}
+              className="bg-white text-green-600 px-4 py-2 rounded"
+            >
+              Add Contact
+            </button>
 
-            {/* Header */}
-            <div className="bg-blue-600 text-white p-4 font-semibold text-lg shadow">
-                Contact Chat Room
-            </div>
-
-            {/* Chat Messages */}
-            <div className="flex-grow overflow-y-auto p-4 space-y-3">
-                {messages.map((msg, index) => (
-                    <div key={index} className="flex flex-col w-fit max-w-xs">
-                        {msg.text ? (
-                            <div className="bg-white px-4 py-2 rounded-xl shadow text-gray-800">
-                                <span className="font-semibold">{msg.sender}: </span>
-                                {msg.text}
-                            </div>
-                        ) : (
-                            <div className="bg-green-100 px-4 py-3 rounded-xl shadow">
-                                <p className="font-bold text-gray-700">{msg.sender} shared a contact:</p>
-                                <p className="text-lg font-semibold">{msg.contact_name}</p>
-                                <p className="text-gray-700">{msg.contact_phone}</p>
-                            </div>
-                        )}
-                    </div>
-                ))}
-            </div>
-
-            {/* Text Input */}
-            <div className="bg-white p-4 flex gap-3 border-t shadow-md">
-                <input
-                    type="text"
-                    placeholder="Type message..."
-                    className="flex-1 border border-gray-300 rounded-lg px-3 py-2 focus:ring focus:ring-blue-300 outline-none"
-                    value={text}
-                    onChange={(e) => setText(e.target.value)}
-                />
-
-                <button
-                    onClick={sendTextMessage}
-                    className="bg-blue-600 text-white px-5 py-2 rounded-lg hover:bg-blue-700 transition"
-                >
-                    Send
-                </button>
-            </div>
-
-            {/* Contact Sharing Input */}
-            <div className="bg-gray-100 p-4 flex gap-3 border-t">
-
-                <input
-                    type="text"
-                    placeholder="Contact Name"
-                    className="border border-gray-300 px-3 py-2 rounded-lg w-40 focus:ring"
-                    value={contact.name}
-                    onChange={(e) => setContact({ ...contact, name: e.target.value })}
-                />
-
-                <input
-                    type="text"
-                    placeholder="Phone Number"
-                    className="border border-gray-300 px-3 py-2 rounded-lg w-40 focus:ring"
-                    value={contact.phone}
-                    onChange={(e) => setContact({ ...contact, phone: e.target.value })}
-                />
-
-                <button
-                    onClick={sendContact}
-                    className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition"
-                >
-                    Share Contact
-                </button>
-            </div>
+            <button
+              onClick={() => setIsShareModalOpen(true)}
+              className="bg-green-800 px-4 py-2 rounded"
+            >
+              Share Contact
+            </button>
+          </div>
         </div>
-    );
+      </header>
+
+      <main className="max-w-4xl mx-auto p-4">
+        {/* Search Box */}
+        <div className="bg-white p-3 rounded shadow mb-4">
+          <input
+            type="text"
+            placeholder="Search contacts..."
+            className="w-full border p-2 rounded"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+        </div>
+
+        {/* Tabs */}
+        <div className="bg-white rounded shadow mb-4">
+          <div className="flex border-b">
+            <button
+              onClick={() => setActiveTab("myContacts")}
+              className={`flex-1 py-3 ${
+                activeTab === "myContacts"
+                  ? "border-b-2 border-green-600 text-green-600"
+                  : "text-gray-500"
+              }`}
+            >
+              My Contacts ({contacts.length})
+            </button>
+
+            <button
+              onClick={() => setActiveTab("shared")}
+              className={`flex-1 py-3 ${
+                activeTab === "shared"
+                  ? "border-b-2 border-green-600 text-green-600"
+                  : "text-gray-500"
+              }`}
+            >
+              Shared With Me ({sharedContacts.length})
+            </button>
+          </div>
+        </div>
+
+        {/* My Contacts */}
+        {activeTab === "myContacts" && (
+          <div className="bg-white rounded shadow divide-y">
+            {filteredContacts.map((c) => (
+              <div key={c.id} className="p-4 flex justify-between items-center">
+                <div>
+                  <h3 className="text-lg font-medium">{c.name}</h3>
+                  <p className="text-gray-600">{c.phone_number}</p>
+                  {c.email && <p className="text-gray-500 text-sm">{c.email}</p>}
+                </div>
+
+                <button
+                  onClick={() => deleteContact(c.id)}
+                  className="text-red-600 hover:underline"
+                >
+                  Delete
+                </button>
+              </div>
+            ))}
+
+            {filteredContacts.length === 0 && (
+              <p className="p-6 text-center text-gray-500">No contacts found.</p>
+            )}
+          </div>
+        )}
+
+        {/* Shared Contacts */}
+        {activeTab === "shared" && (
+          <div className="bg-white rounded shadow divide-y">
+            {filteredSharedContacts.map((c) => (
+              <div key={c.id} className="p-4 flex justify-between items-start">
+                <div>
+                  <h3 className="text-lg font-medium">{c.contact_name}</h3>
+                  <p className="text-gray-600">{c.contact_phone}</p>
+                  {c.contact_email && (
+                    <p className="text-gray-500 text-sm">{c.contact_email}</p>
+                  )}
+                  <p className="text-gray-400 text-xs mt-1">
+                    Shared by {c.sender.username}
+                  </p>
+                </div>
+
+                {!c.is_accepted && (
+                  <div className="space-x-2">
+                    <button
+                      onClick={() => acceptShared(c.id)}
+                      className="px-3 py-1 bg-green-600 text-white rounded"
+                    >
+                      Accept
+                    </button>
+                    <button
+                      onClick={() => rejectShared(c.id)}
+                      className="px-3 py-1 bg-red-600 text-white rounded"
+                    >
+                      Reject
+                    </button>
+                  </div>
+                )}
+              </div>
+            ))}
+
+            {filteredSharedContacts.length === 0 && (
+              <p className="p-6 text-center text-gray-500">No shared contacts.</p>
+            )}
+          </div>
+        )}
+      </main>
+
+      {/* Add Contact Modal */}
+      {isAddContactModalOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-40 flex justify-center items-center">
+          <div className="bg-white p-6 rounded shadow w-80">
+            <h2 className="text-xl mb-4">Add Contact</h2>
+
+            <form onSubmit={addContact} className="space-y-3">
+              <input
+                type="text"
+                placeholder="Name"
+                className="w-full border p-2 rounded"
+                required
+                value={newContact.name}
+                onChange={(e) =>
+                  setNewContact({ ...newContact, name: e.target.value })
+                }
+              />
+
+              <input
+                type="text"
+                placeholder="Phone Number"
+                className="w-full border p-2 rounded"
+                required
+                value={newContact.phone_number}
+                onChange={(e) =>
+                  setNewContact({ ...newContact, phone_number: e.target.value })
+                }
+              />
+
+              <input
+                type="email"
+                placeholder="Email (optional)"
+                className="w-full border p-2 rounded"
+                value={newContact.email}
+                onChange={(e) =>
+                  setNewContact({ ...newContact, email: e.target.value })
+                }
+              />
+
+              <div className="flex justify-end space-x-2 mt-4">
+                <button
+                  type="button"
+                  onClick={() => setIsAddContactModalOpen(false)}
+                  className="px-4 py-2 border rounded"
+                >
+                  Cancel
+                </button>
+
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-green-600 text-white rounded"
+                >
+                  Add
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Share Contact Modal */}
+      {isShareModalOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-40 flex justify-center items-center">
+          <div className="bg-white p-6 rounded shadow w-80">
+            <h2 className="text-xl mb-4">Share Contact</h2>
+
+            <select
+              className="w-full border p-2 rounded mb-3"
+              value={selectedContact}
+              onChange={(e) => setSelectedContact(e.target.value)}
+            >
+              <option value="">Select Contact</option>
+              {contacts.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+
+            <select
+              className="w-full border p-2 rounded mb-3"
+              value={selectedUser}
+              onChange={(e) => setSelectedUser(e.target.value)}
+            >
+              <option value="">Select User</option>
+              {users.map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.username}
+                </option>
+              ))}
+            </select>
+
+            <div className="flex justify-end space-x-2">
+              <button
+                className="px-4 py-2 border rounded"
+                onClick={() => setIsShareModalOpen(false)}
+              >
+                Cancel
+              </button>
+
+              <button
+                className="px-4 py-2 bg-green-600 text-white rounded"
+                onClick={shareContact}
+              >
+                Share
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 };
 
-export default Contact;
+export default ContactSharingApp;
